@@ -1,0 +1,23 @@
+essence ejemplo {
+
+ declare num valor1;
+ declare num valor2;
+ declare num respuesta;
+
+     respuesta = valor1 + valor2;
+     show (respuesta);
+
+}
+
+essence condicion {
+
+ declare num valor;
+ declare num respuesta;
+
+ if ( valor == 2 ) {
+     respuesta = 1;          
+ }
+ else {
+     respuesta = 0;
+ }
+}
