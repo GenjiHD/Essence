@@ -111,7 +111,7 @@ public class CodigoObjeto {
     public static String ByteCode() {
         String respuesta = "";
         String[] instrucciones = instrucciones();
-        String opCode = "", mod = "", reg = "", rm = "";
+        String opCode, mod, reg, rm;
         boolean bandera;
         String binario;
         int conversion;
@@ -125,75 +125,118 @@ public class CodigoObjeto {
                 bandera = true;
             } catch (Exception ignored) {}
 
-            if (bandera) continue;
+            if (bandera) {
+                continue;
+            }
 
             String instr = instrucciones[i];
 
-            switch (instr) {
-                case "MOV":
-                    // Simplificado opcode MOV (solo ejemplo)
-                    opCode = "1011";
-                    respuesta += "\n" + opCode;
-                    break;
-
-                case "CMP":
-                    opCode = "11101011";
-                    respuesta += "\n" + opCode;
-                    break;
-
-                case "JE":
-                    respuesta += "\n11101000";
-                    break;
-
-                case "JMP":
-                    respuesta += "\n11101011";
-                    break;
-
-                case "*":
-                    if (i >= 1 && i + 1 < instrucciones.length && i >= 3) {
-                        String resultado = instrucciones[i - 3];
-                        String opIzq = instrucciones[i - 1];
-                        String opDer = instrucciones[i + 1];
-                        respuesta += "\n\t;Multiplicacion\n\tMOV AX, " + opIzq;
-                        respuesta += "\n\tMUL AX, " + opDer;
-                        respuesta += "\n\tMOV " + resultado + ", AX";
+            if (instr.equals("MOV")) {
+                opCode = "1011 1001 ";
+                if (i + 1 < instrucciones.length && instrucciones[i + 1].equals("AX,")) {
+                    mod = "10 ";
+                    reg = "000 ";
+                    rm = "000 ";
+                } else if (i + 1 < instrucciones.length && instrucciones[i + 1].equals("BX,")) {
+                    mod = "10 ";
+                    reg = "110 ";
+                    rm = "110 ";
+                } else {
+                    mod = reg = rm = "";
+                }
+                if (!respuesta.isEmpty()) respuesta += "\n";
+                respuesta += opCode + mod + reg;
+            } 
+            else if (instr.equals("CMP")) {
+                opCode = "1110 1011 ";
+                if (i + 2 < instrucciones.length && instrucciones[i + 1].equals("AX,") && instrucciones[i + 2].equals("BX")) {
+                    mod = "01 ";
+                    reg = "1101 ";
+                    rm = "1000 ";
+                } else {
+                    mod = reg = rm = "";
+                }
+                respuesta += "\n" + opCode + mod + reg + rm;
+            }
+            else if (instr.equals("JE")) {
+                respuesta += "\n1110 1000 ";
+            }
+            else if (instr.equals("JMP")) {
+                respuesta += "\n1110 1011 ";
+            }
+            else if (instr.equals("LEA")) {
+                // Ejemplo simple para LEA: opcode 10001101 seguido de mod/reg/rm simplificado
+                respuesta += "\n1000 1101 "; // Opcode LEA
+                if (i + 1 < instrucciones.length) {
+                    if (instrucciones[i + 1].equals("BX,")) {
+                        respuesta += "10110000"; // mod/reg/rm simplificado
                     }
-                    break;
-
-                case "-":
-                    if (i >= 1 && i + 1 < instrucciones.length && i >= 3) {
-                        String resultado = instrucciones[i - 3];
-                        String opIzq = instrucciones[i - 1];
-                        String opDer = instrucciones[i + 1];
-                        respuesta += "\n\t;Resta\n\tMOV AX, " + opIzq;
-                        respuesta += "\n\tSUB AX, " + opDer;
-                        respuesta += "\n\tMOV " + resultado + ", AX";
+                }
+            }
+            else if (instr.equals("INT")) {
+                // Opcode INT = 11001101 seguido del número de interrupción
+                respuesta += "\n1100 1101 ";
+                if (i + 1 < instrucciones.length) {
+                    try {
+                        int numInt = Integer.decode(instrucciones[i + 1]);
+                        String numBin = String.format("%8s", Integer.toBinaryString(numInt & 0xFF)).replace(' ', '0');
+                        respuesta += numBin;
+                    } catch (Exception e) {
+                        respuesta += "00000000"; // valor por defecto si no se puede
                     }
-                    break;
-
-                case "+":
-                    if (i >= 1 && i + 1 < instrucciones.length && i >= 3) {
-                        String resultado = instrucciones[i - 3];
-                        String opIzq = instrucciones[i - 1];
-                        String opDer = instrucciones[i + 1];
-                        respuesta += "\n\t;Suma\n\tMOV AX, " + opIzq;
-                        respuesta += "\n\tADD AX, " + opDer;
-                        respuesta += "\n\tMOV " + resultado + ", AX";
-                    }
-                    break;
-
-                case "=":
-                    if (i + 2 < instrucciones.length && instrucciones[i + 2].equals(";")) {
-                        String destino = instrucciones[i - 1];
-                        String fuente = instrucciones[i + 1];
-                        respuesta += "\n\tMOV AX, " + fuente;
-                        respuesta += "\n\tMOV " + destino + ", AX";
-                    }
-                    break;
+                }
+            }
+            else if (instr.equals("*")) {
+                if (i >= 3 && i + 1 < instrucciones.length) {
+                    String resultado = instrucciones[i - 3];
+                    String opIzq = instrucciones[i - 1];
+                    String opDer = instrucciones[i + 1];
+                    respuesta += "\n\t;Multiplicacion\n\tMOV AX, " + opIzq;
+                    respuesta += "\n\tMUL AX, " + opDer;
+                    respuesta += "\n\tMOV " + resultado + ", AX";
+                }
+            }
+            else if (instr.equals("-")) {
+                if (i >= 3 && i + 1 < instrucciones.length) {
+                    String resultado = instrucciones[i - 3];
+                    String opIzq = instrucciones[i - 1];
+                    String opDer = instrucciones[i + 1];
+                    respuesta += "\n\t;Resta\n\tMOV AX, " + opIzq;
+                    respuesta += "\n\tSUB AX, " + opDer;
+                    respuesta += "\n\tMOV " + resultado + ", AX";
+                }
+            }
+            else if (instr.equals("+")) {
+                if (i >= 3 && i + 1 < instrucciones.length) {
+                    String resultado = instrucciones[i - 3];
+                    String opIzq = instrucciones[i - 1];
+                    String opDer = instrucciones[i + 1];
+                    respuesta += "\n\t;Suma\n\tMOV AX, " + opIzq;
+                    respuesta += "\n\tADD AX, " + opDer;
+                    respuesta += "\n\tMOV " + resultado + ", AX";
+                }
+            }
+            else if (instr.equals("/")) {
+                if (i >= 3 && i + 1 < instrucciones.length) {
+                    String resultado = instrucciones[i - 3];
+                    String opIzq = instrucciones[i - 1];
+                    String opDer = instrucciones[i + 1];
+                    respuesta += "\n\t;Division\n\tMOV AX, " + opIzq;
+                    respuesta += "\n\tDIV AX, " + opDer;
+                    respuesta += "\n\tMOV " + resultado + ", AX";
+                }
+            }
+            else if (instr.equals("=")) {
+                if (i + 2 < instrucciones.length && instrucciones[i + 2].equals(";")) {
+                    String destino = instrucciones[i - 1];
+                    String fuente = instrucciones[i + 1];
+                    respuesta += "\n\tMOV AX, " + fuente;
+                    respuesta += "\n\tMOV " + destino + ", AX";
+                }
             }
         }
 
-        // Conversión de variables DW, DD, DB
+        // --- Conversión de variables DW, DD, DB ---
         String texto = Main.txtIntermedio.getText();
         String[] lineas = texto.split("\n");
 
@@ -214,7 +257,8 @@ public class CodigoObjeto {
                 } else {
                     respuesta += "\n0000000000000000";
                 }
-            } else if (linea.contains("DD")) {
+            } 
+            else if (linea.contains("DD")) {
                 String[] partes = linea.split("\\s+");
                 if (partes.length >= 3) {
                     try {
@@ -228,13 +272,16 @@ public class CodigoObjeto {
                 } else {
                     respuesta += "\n00000000000000000000000000000000";
                 }
-            } else if (linea.contains("DB")) {
-                int index = linea.indexOf("'");
-                if (index != -1 && linea.endsWith("'")) {
-                    String contenido = linea.substring(index + 1, linea.length() - 1);
-                    for (char c : contenido.toCharArray()) {
-                        String bin = String.format("%8s", Integer.toBinaryString(c)).replace(' ', '0');
+            }
+            else if (linea.contains("DB")) {
+                String[] partes = linea.split("\\s+");
+                if (partes.length >= 3) {
+                    try {
+                        int valor = Integer.parseInt(partes[2]);
+                        String bin = String.format("%8s", Integer.toBinaryString(valor)).replace(' ', '0');
                         respuesta += "\n" + bin;
+                    } catch (Exception e) {
+                        respuesta += "\n00000000";
                     }
                 } else {
                     respuesta += "\n00000000";
@@ -246,6 +293,8 @@ public class CodigoObjeto {
     }
 
     public static String[] instrucciones() {
-        return Main.txtIntermedio.getText().trim().split("\\s+");
+        String texto = Main.txtIntermedio.getText();
+        return texto.split("\\s+");
     }
+
 }
