@@ -112,141 +112,154 @@ public class CodigoObjeto {
     }
 
     public static String ByteCode() {
+        String[] lineas = Main.txtIntermedio.getText().split("\n");
+        HashMap<String, Integer> mapaSaltos = new HashMap<>();
+        HashMap<String, String> mapaVariables = new HashMap<>();
         StringBuilder respuesta = new StringBuilder();
-        String[] instrucciones = instrucciones();
-        String opCode, mod, reg, rm;
-        boolean bandera;
-        String binario;
-        int conversion;
+        int posicion = 0;
+        int contadorDireccionVariable = 1000;
 
-        for (int i = 0; i < instrucciones.length; i++) {
-            bandera = false;
-            try {
-                conversion = Integer.parseInt(instrucciones[i]);
-                binario = Integer.toBinaryString(conversion);
-                binario = rellenarA8Bits(binario);
-                respuesta.append(binario).append("\n");
-                bandera = true;
-            } catch (Exception ignored) {}
+        // Primero, mapear etiquetas
+        for (String linea : lineas) {
+            String[] instrucciones = linea.split(" ");
+            if (instrucciones[0].endsWith(":")) {
+                mapaSaltos.put(instrucciones[0].replace(":", ""), posicion);
+            } else {
+                posicion++;
+            }
+        }
 
-            if (bandera) {
+        // Luego traducir a binario
+        posicion = 0;
+        for (String linea : lineas) {
+            linea = linea.trim();
+            if (linea.isEmpty()) continue;
+
+            // Instrucciones de datos
+            if (linea.contains("DW")) {
+                String[] partes = linea.split("\\s+");
+                if (partes.length >= 3) {
+                    try {
+                        int valor = Integer.parseInt(partes[2]);
+                        String bin = String.format("%16s", Integer.toBinaryString(valor)).replace(' ', '0');
+                        respuesta.append("\n").append(bin);
+                    } catch (Exception e) {
+                        respuesta.append("\n0000000000000000");
+                    }
+                } else {
+                    respuesta.append("\n0000000000000000");
+                }
+                continue;
+            } else if (linea.contains("DD")) {
+                String[] partes = linea.split("\\s+");
+                if (partes.length >= 3) {
+                    try {
+                        float valor = Float.parseFloat(partes[2]);
+                        int bits = Float.floatToIntBits(valor);
+                        String bin = String.format("%32s", Integer.toBinaryString(bits)).replace(' ', '0');
+                        respuesta.append("\n").append(bin);
+                    } catch (Exception e) {
+                        respuesta.append("\n00000000000000000000000000000000");
+                    }
+                } else {
+                    respuesta.append("\n00000000000000000000000000000000");
+                }
+                continue;
+            } else if (linea.contains("DB")) {
+                int index = linea.indexOf("'");
+                if (index != -1 && linea.endsWith("'")) {
+                    String contenido = linea.substring(index + 1, linea.length() - 1);
+                    for (char c : contenido.toCharArray()) {
+                        String bin = String.format("%8s", Integer.toBinaryString(c)).replace(' ', '0');
+                        respuesta.append("\n").append(bin);
+                    }
+                } else {
+                    respuesta.append("\n00000000");
+                }
                 continue;
             }
 
-            String instr = instrucciones[i];
+            // Instrucciones de código
+            String[] instrucciones = linea.split(" ");
+            if (instrucciones[0].endsWith(":")) continue;
 
-            if (instr.equals("MOV")) {
-                opCode = "10111001";  // Corregí para que no tenga espacios y sea un byte completo
-                if (i + 1 < instrucciones.length && instrucciones[i + 1].equals("AX,")) {
-                    mod = "10";
-                    reg = "000";
-                    rm = "000";
-                } else if (i + 1 < instrucciones.length && instrucciones[i + 1].equals("BX,")) {
-                    mod = "10";
-                    reg = "110";
-                    rm = "110";
-                } else {
-                    mod = reg = rm = "";
-                }
-                String codigo = opCode + mod + reg + rm;
-                codigo = rellenarA8Bits(codigo);
-                respuesta.append(codigo).append("\n");
-            } 
-            else if (instr.equals("CMP")) {
-                opCode = "11101011";
-                if (i + 2 < instrucciones.length && instrucciones[i + 1].equals("AX,") && instrucciones[i + 2].equals("BX")) {
-                    mod = "01";
-                    reg = "1101";
-                    rm = "1000";
-                } else {
-                    mod = reg = rm = "";
-                }
-                String codigo = opCode + mod + reg + rm;
-                codigo = rellenarA8Bits(codigo);
-                respuesta.append(codigo).append("\n");
-            }
-            else if (instr.equals("JE")) {
-                String codigo = "11101000";
-                codigo = rellenarA8Bits(codigo);
-                respuesta.append(codigo).append("\n");
-            }
-            else if (instr.equals("JMP")) {
-                String codigo = "11101011";
-                codigo = rellenarA8Bits(codigo);
-                respuesta.append(codigo).append("\n");
-            }
-            else if (instr.equals("LEA")) {
-                // Ejemplo simple para LEA: opcode 10001101 seguido de mod/reg/rm simplificado
-                String codigo = "10001101";
-                if (i + 1 < instrucciones.length) {
-                    if (instrucciones[i + 1].equals("BX,")) {
-                        codigo += "10110000"; // mod/reg/rm simplificado
-                    }
-                }
-                codigo = rellenarA8Bits(codigo);
-                respuesta.append(codigo).append("\n");
-            }
-            else if (instr.equals("INT")) {
-                // Opcode INT = 11001101 seguido del número de interrupción (1 byte)
-                String codigo = "11001101";
-                if (i + 1 < instrucciones.length) {
+            for (int i = 0; i < instrucciones.length; i++) {
+                boolean bandera = false;
+
+                // Instrucciones principales
+                if (instrucciones[i].equals("MOV")) {
+                    respuesta.append("10110000").append("\n");
+                    bandera = true;
+                } else if (instrucciones[i].equals("CMP")) {
+                    respuesta.append("00111000").append("\n");
+                    bandera = true;
+                } else if (instrucciones[i].equals("JE")) {
+                    respuesta.append("01110100").append("\n");
+                    i++;
+                    int destino = mapaSaltos.getOrDefault(instrucciones[i], 0);
+                    int desplazamiento = destino - posicion - 1;
+                    String bin = rellenarA8Bits(Integer.toBinaryString(desplazamiento & 0xFF));
+                    respuesta.append(bin).append("\n");
+                    bandera = true;
+                } else if (instrucciones[i].equals("JMP")) {
+                    respuesta.append("11101001").append("\n");
+                    i++;
+                    int destino = mapaSaltos.getOrDefault(instrucciones[i], 0);
+                    int desplazamiento = destino - posicion - 1;
+                    String bin = rellenarA8Bits(Integer.toBinaryString(desplazamiento & 0xFF));
+                    respuesta.append(bin).append("\n");
+                    bandera = true;
+                } else if (instrucciones[i].equals("INT")) {
+                    respuesta.append("11001101").append("\n");
+                    i++;
+                    String valor = instrucciones[i];
+                    int numero;
                     try {
-                        int numInt = Integer.decode(instrucciones[i + 1]); // acepta hex como 0xXX
-                        String numBin = String.format("%8s", Integer.toBinaryString(numInt & 0xFF)).replace(' ', '0');
-                        codigo += numBin; // concatena el byte de número
+                        if (valor.startsWith("0x")) {
+                            numero = Integer.parseInt(valor.substring(2), 16);
+                        } else {
+                            numero = Integer.parseInt(valor);
+                        }
+                        String binario = rellenarA8Bits(Integer.toBinaryString(numero));
+                        respuesta.append(binario).append("\n");
+                        bandera = true;
                     } catch (Exception e) {
-                        codigo += "00000000"; // por si hay error
+                        respuesta.append("00000000").append("\n");
+                        bandera = true;
                     }
-                } else {
-                    codigo += "00000000"; // si no hay número
                 }
-                // Ya tiene 16 bits (2 bytes) — NO rellenar a 8 bits más, porque estaría mal.
-                respuesta.append(codigo).append("\n");
-            }
-            else if (instr.equals("*")) {
-                if (i >= 3 && i + 1 < instrucciones.length) {
-                    String resultado = instrucciones[i - 3];
-                    String opIzq = instrucciones[i - 1];
-                    String opDer = instrucciones[i + 1];
-                    respuesta.append("\n\t;Multiplicacion\n\tMOV AX, ").append(opIzq);
-                    respuesta.append("\n\tMUL AX, ").append(opDer);
-                    respuesta.append("\n\tMOV ").append(resultado).append(", AX\n");
+
+                // Variables
+                if (!bandera) {
+                    String posibleVar = instrucciones[i].replace(",", "");
+                    if (!posibleVar.matches("[0-9]+") && !posibleVar.startsWith("0x")) {
+                        if (!mapaVariables.containsKey(posibleVar)) {
+                            String direccionBin = String.format("%8s", Integer.toBinaryString(contadorDireccionVariable)).replace(' ', '0');
+                            mapaVariables.put(posibleVar, direccionBin);
+                            contadorDireccionVariable++;
+                        }
+                        respuesta.append(mapaVariables.get(posibleVar)).append("\n");
+                        bandera = true;
+                    }
                 }
-            }
-            else if (instr.equals("-")) {
-                if (i >= 3 && i + 1 < instrucciones.length) {
-                    String resultado = instrucciones[i - 3];
-                    String opIzq = instrucciones[i - 1];
-                    String opDer = instrucciones[i + 1];
-                    respuesta.append("\n\t;Resta\n\tMOV AX, ").append(opIzq);
-                    respuesta.append("\n\tSUB AX, ").append(opDer);
-                    respuesta.append("\n\tMOV ").append(resultado).append(", AX\n");
-                }
-            }
-            else if (instr.equals("+")) {
-                if (i >= 3 && i + 1 < instrucciones.length) {
-                    String resultado = instrucciones[i - 3];
-                    String opIzq = instrucciones[i - 1];
-                    String opDer = instrucciones[i + 1];
-                    respuesta.append("\n\t;Suma\n\tMOV AX, ").append(opIzq);
-                    respuesta.append("\n\tADD AX, ").append(opDer);
-                    respuesta.append("\n\tMOV ").append(resultado).append(", AX\n");
+
+                // Números literales
+                if (!bandera) {
+                    try {
+                        int numero = Integer.parseInt(instrucciones[i].replace(",", ""));
+                        String binario = rellenarA8Bits(Integer.toBinaryString(numero));
+                        respuesta.append(binario).append("\n");
+                        bandera = true;
+                    } catch (Exception ignored) {}
                 }
             }
-            else if (instr.equals("/")) {
-                if (i >= 3 && i + 1 < instrucciones.length) {
-                    String resultado = instrucciones[i - 3];
-                    String opIzq = instrucciones[i - 1];
-                    String opDer = instrucciones[i + 1];
-                    respuesta.append("\n\t;Division\n\tMOV AX, ").append(opIzq);
-                    respuesta.append("\n\tDIV AX, ").append(opDer);
-                    respuesta.append("\n\tMOV ").append(resultado).append(", AX\n");
-                }
-            }
+
+            posicion++;
         }
 
         return respuesta.toString();
     }
+
 
     private static String[] instrucciones() {
         String texto = Main.txtIntermedio.getText();
@@ -254,18 +267,17 @@ public class CodigoObjeto {
         return tokens;
     }
 
-    // Solo rellena si la longitud es menor a 8 bits, para completar 1 byte
     private static String rellenarA8Bits(String binario) {
-        binario = binario.replaceAll(" ", "");
-        int length = binario.length();
-
-        if (length < 8) {
-            int faltan = 8 - length;
-            binario += "0".repeat(faltan);
+        int longitud = binario.length();
+        if (longitud < 8) {
+            return "0".repeat(8 - longitud) + binario;
+        } else if (longitud > 8) {
+            return binario.substring(longitud - 8);
+        } else {
+            return binario;
         }
-        // No rellena si ya tiene 8 o más bits
-        return binario;
     }
+
 
     public static String formatearBinarioConEspacios(String binario) {
         binario = binario.replaceAll(" ", "");
