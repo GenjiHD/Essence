@@ -118,23 +118,23 @@ public class CodigoObjeto {
         StringBuilder respuesta = new StringBuilder();
         int posicion = 0;
         int contadorDireccionVariable = 1000;
-
-        // Primero, mapear etiquetas
+    
+        // Mapear etiquetas
         for (String linea : lineas) {
-            String[] instrucciones = linea.split(" ");
+            String[] instrucciones = linea.trim().split(" ");
             if (instrucciones[0].endsWith(":")) {
                 mapaSaltos.put(instrucciones[0].replace(":", ""), posicion);
             } else {
                 posicion++;
             }
         }
-
-        // Luego traducir a binario
+    
+        // Traducir a binario
         posicion = 0;
         for (String linea : lineas) {
             linea = linea.trim();
             if (linea.isEmpty()) continue;
-
+    
             // Instrucciones de datos
             if (linea.contains("DW")) {
                 String[] partes = linea.split("\\s+");
@@ -178,22 +178,24 @@ public class CodigoObjeto {
                 }
                 continue;
             }
-
+    
             // Instrucciones de código
             String[] instrucciones = linea.split(" ");
             if (instrucciones[0].endsWith(":")) continue;
-
+    
             for (int i = 0; i < instrucciones.length; i++) {
                 boolean bandera = false;
-
+    
+                String instr = instrucciones[i];
+    
                 // Instrucciones principales
-                if (instrucciones[i].equals("MOV")) {
+                if (instr.equals("MOV")) {
                     respuesta.append("10110000").append("\n");
                     bandera = true;
-                } else if (instrucciones[i].equals("CMP")) {
+                } else if (instr.equals("CMP")) {
                     respuesta.append("00111000").append("\n");
                     bandera = true;
-                } else if (instrucciones[i].equals("JE")) {
+                } else if (instr.equals("JE")) {
                     respuesta.append("01110100").append("\n");
                     i++;
                     int destino = mapaSaltos.getOrDefault(instrucciones[i], 0);
@@ -201,7 +203,7 @@ public class CodigoObjeto {
                     String bin = rellenarA8Bits(Integer.toBinaryString(desplazamiento & 0xFF));
                     respuesta.append(bin).append("\n");
                     bandera = true;
-                } else if (instrucciones[i].equals("JMP")) {
+                } else if (instr.equals("JMP")) {
                     respuesta.append("11101001").append("\n");
                     i++;
                     int destino = mapaSaltos.getOrDefault(instrucciones[i], 0);
@@ -209,26 +211,43 @@ public class CodigoObjeto {
                     String bin = rellenarA8Bits(Integer.toBinaryString(desplazamiento & 0xFF));
                     respuesta.append(bin).append("\n");
                     bandera = true;
-                } else if (instrucciones[i].equals("INT")) {
+                } else if (instr.equals("INT")) {
                     respuesta.append("11001101").append("\n");
                     i++;
                     String valor = instrucciones[i];
-                    int numero;
                     try {
-                        if (valor.startsWith("0x")) {
-                            numero = Integer.parseInt(valor.substring(2), 16);
-                        } else {
-                            numero = Integer.parseInt(valor);
-                        }
+                        int numero = valor.startsWith("0x") ?
+                            Integer.parseInt(valor.substring(2), 16) :
+                            Integer.parseInt(valor);
                         String binario = rellenarA8Bits(Integer.toBinaryString(numero));
                         respuesta.append(binario).append("\n");
-                        bandera = true;
                     } catch (Exception e) {
                         respuesta.append("00000000").append("\n");
-                        bandera = true;
                     }
+                    bandera = true;
                 }
-
+    
+                // Operaciones aritméticas
+                else if (instr.equals("ADD")) {
+                    respuesta.append("00000001").append("\n");
+                    bandera = true;
+                } else if (instr.equals("SUB")) {
+                    respuesta.append("00101000").append("\n");
+                    bandera = true;
+                } else if (instr.equals("MUL")) {
+                    respuesta.append("11110110").append("\n");
+                    bandera = true;
+                } else if (instr.equals("DIV")) {
+                    respuesta.append("11110111").append("\n");
+                    bandera = true;
+                } else if (instr.equals("INC")) {
+                    respuesta.append("11111110").append("\n");
+                    bandera = true;
+                } else if (instr.equals("DEC")) {
+                    respuesta.append("11111111").append("\n");
+                    bandera = true;
+                }
+    
                 // Variables
                 if (!bandera) {
                     String posibleVar = instrucciones[i].replace(",", "");
@@ -242,7 +261,7 @@ public class CodigoObjeto {
                         bandera = true;
                     }
                 }
-
+    
                 // Números literales
                 if (!bandera) {
                     try {
@@ -253,13 +272,13 @@ public class CodigoObjeto {
                     } catch (Exception ignored) {}
                 }
             }
-
+    
             posicion++;
         }
-
+    
         return respuesta.toString();
     }
-
+    
 
     private static String[] instrucciones() {
         String texto = Main.txtIntermedio.getText();
